@@ -6,61 +6,85 @@ Helmfire extends [helmfile](https://github.com/helmfile/helmfile) with developer
 
 ## Features
 
-- 🔄 **Watch Mode** - Auto-sync on helmfile.yaml or values file changes
-- 🔧 **Live Chart Substitution** - Replace remote charts with local versions on-the-fly
-- 🎯 **Live Image Substitution** - Override container images dynamically
-- 📊 **Drift Detection** - Monitor cluster state vs. desired state
-- 🤖 **Daemon Mode** - Background process with API control
-- ⚡ **Selective Sync** - Only re-deploy affected releases on changes
+- ✅ **Basic Sync** - Helmfile-compatible release synchronization (Phase 1)
+- ✅ **Chart Substitution** - Replace remote charts with local versions (Phase 1)
+- ✅ **Image Substitution** - Override container images via post-renderer (Phase 1)
+- 🚧 **Watch Mode** - Auto-sync on helmfile.yaml or values file changes (Phase 2)
+- 🚧 **Drift Detection** - Monitor cluster state vs. desired state (Phase 3)
+- 🚧 **Daemon Mode** - Background process with API control (Phase 4)
 
 ## Status
 
-🚧 **Under Development** 🚧
+🎉 **Phase 1 Complete!** 🎉
 
-This project is currently in the design and initial implementation phase. See the [architecture documentation](HELMFIRE_ARCHITECTURE.md) for details.
+The foundation is ready with working sync functionality and chart/image substitution. See [examples/](examples/) to try it out!
 
 ## Quick Start
 
-> Note: These examples show the intended usage. Implementation is in progress.
-
-### Basic Sync with Watching
+### Installation
 
 ```bash
-# Start helmfire in watch mode
-helmfire sync --watch
+git clone https://github.com/oleksiyp/helmfire.git
+cd helmfire
+make build
+sudo mv helmfire /usr/local/bin/
+```
 
-# In another terminal, edit your helmfile or charts
-# Helmfire automatically detects changes and re-syncs
+Prerequisites: Go 1.21+, `helm`, and `kubectl`
+
+### Basic Sync
+
+```bash
+# Sync all releases from helmfile.yaml
+helmfire sync
+
+# Dry-run to preview changes
+helmfire sync --dry-run
+
+# Sync with specific file
+helmfire sync -f path/to/helmfile.yaml
 ```
 
 ### Chart Substitution
 
 ```bash
-# Replace a remote chart with local version for development
-helmfire chart bitnami/postgresql ./charts/postgresql-dev
+# Add chart substitution
+helmfire chart bitnami/nginx ./examples/local-chart/my-nginx-chart
 
-# All releases using bitnami/postgresql will now use your local version
-# Changes to ./charts/postgresql-dev trigger automatic re-deployment
+# Run sync with substitution applied
+helmfire sync --dry-run
+
+# List active substitutions
+helmfire list charts
 ```
 
 ### Image Substitution
 
 ```bash
-# Replace an image across all releases
-helmfire image postgres:15 localhost:5000/postgres:my-custom-build
+# Add image substitution
+helmfire image postgres:15 localhost:5000/postgres:custom
 
-# Test your custom image without modifying helmfile or values
+# Run sync with substitution applied
+helmfire sync --dry-run
+
+# List active substitutions
+helmfire list images
 ```
 
-### Drift Detection
+### Try the Examples
 
 ```bash
-# Monitor for configuration drift
-helmfire sync --watch --drift-detect --drift-interval=30s
+cd examples/simple-app
 
-# Auto-heal drift (restore desired state)
-helmfire sync --watch --drift-detect --drift-auto-heal
+# Basic sync
+helmfire sync -f helmfile.yaml --dry-run
+
+# With chart substitution
+helmfire chart bitnami/nginx ../local-chart/my-nginx-chart
+helmfire sync -f helmfile.yaml --dry-run
 ```
+
+See [examples/README.md](examples/README.md) for more.
 
 ## Project Documentation
 
@@ -76,11 +100,13 @@ helmfire sync --watch --drift-detect --drift-auto-heal
   - [x] Analyze helm source code
   - [x] Design architecture
   - [x] Identify reusable components
-- [ ] Phase 1: Foundation (Weeks 1-2)
-  - [ ] Project setup and structure
-  - [ ] Substitution Manager implementation
-  - [ ] Basic sync command
-  - [ ] Chart/image substitution commands
+- [x] Phase 1: Foundation (COMPLETE)
+  - [x] Project setup and structure
+  - [x] Substitution Manager implementation
+  - [x] Basic sync command
+  - [x] Chart/image substitution commands
+  - [x] Unit tests
+  - [x] Example configurations
 - [ ] Phase 2: File Watching (Weeks 3-4)
   - [ ] File watcher implementation
   - [ ] Debouncing logic
@@ -218,8 +244,36 @@ Helmfire builds upon the excellent work of:
 - [Helm](https://github.com/helm/helm) - Kubernetes package manager
 - [fsnotify](https://github.com/fsnotify/fsnotify) - Cross-platform file watching
 
+## Command Reference
+
+### helmfire sync
+```bash
+helmfire sync [flags]
+```
+Flags: `-f/--file`, `-n/--namespace`, `--kube-context`, `--dry-run`, `--watch` (Phase 2+)
+
+### helmfire chart
+```bash
+helmfire chart <original> <local-path>
+```
+Example: `helmfire chart bitnami/postgresql ./charts/postgres-dev`
+
+### helmfire image
+```bash
+helmfire image <original> <replacement>
+```
+Example: `helmfire image postgres:15 localhost:5000/postgres:custom`
+
+### helmfire list/remove
+```bash
+helmfire list charts|images
+helmfire remove chart|image <name>
+```
+
 ## Project Status
 
-Current focus: Phase 1 - Foundation
+**Phase 1 Complete!** Foundation with working sync and substitution features.
 
-See [HELMFIRE_ARCHITECTURE.md](HELMFIRE_ARCHITECTURE.md) for detailed implementation plan.
+**Next:** Phase 2 - File watching with auto-sync
+
+See [HELMFIRE_ARCHITECTURE.md](HELMFIRE_ARCHITECTURE.md) for detailed roadmap.

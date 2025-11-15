@@ -5,10 +5,31 @@ import (
 	"os"
 
 	"github.com/oleksiyp/helmfire/internal/version"
+	"github.com/oleksiyp/helmfire/pkg/helmstate"
+	"github.com/oleksiyp/helmfire/pkg/substitute"
+	"github.com/oleksiyp/helmfire/pkg/sync"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
+)
+
+var (
+	globalLogger     *zap.Logger
+	globalSubstitutor *substitute.Manager
 )
 
 func main() {
+	// Initialize logger
+	var err error
+	globalLogger, err = zap.NewDevelopment()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer globalLogger.Sync()
+
+	// Initialize substitutor
+	globalSubstitutor = substitute.NewManager()
+
 	rootCmd := &cobra.Command{
 		Use:   "helmfire",
 		Short: "Helmfile sync with watching, live substitution, and drift detection",
@@ -25,7 +46,6 @@ func main() {
 	rootCmd.AddCommand(newSyncCmd())
 	rootCmd.AddCommand(newChartCmd())
 	rootCmd.AddCommand(newImageCmd())
-	rootCmd.AddCommand(newDaemonCmd())
 	rootCmd.AddCommand(newListCmd())
 	rootCmd.AddCommand(newRemoveCmd())
 
@@ -36,6 +56,18 @@ func main() {
 }
 
 func newSyncCmd() *cobra.Command {
+	var (
+		watch         bool
+		daemon        bool
+		driftDetect   bool
+		file          string
+		environment   string
+		selectors     []string
+		namespace     string
+		kubeContext   string
+		dryRun        bool
+	)
+
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Synchronize releases (like helmfile sync)",
@@ -45,30 +77,75 @@ Examples:
   # Basic sync
   helmfire sync
 
-  # Sync with watching
-  helmfire sync --watch
+  # Sync with specific helmfile
+  helmfire sync -f helmfile.yaml
 
-  # Sync with drift detection
-  helmfire sync --watch --drift-detect --drift-interval=30s
+  # Dry run
+  helmfire sync --dry-run
 
-  # Daemon mode
-  helmfire sync --watch --daemon`,
+  # Sync to specific namespace
+  helmfire sync --namespace production`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement sync command
-			return fmt.Errorf("sync command not yet implemented")
+			if watch || daemon || driftDetect {
+				return fmt.Errorf("watch mode, daemon mode, and drift detection not yet implemented (Phase 2+)")
+			}
+
+			// Load helmfile
+			globalLogger.Info("loading helmfile", zap.String("file", file))
+			manager := helmstate.NewManager(file, environment)
+			if err := manager.Load(); err != nil {
+				return fmt.Errorf("failed to load helmfile: %w", err)
+			}
+
+			// Create executor
+			executor := sync.NewExecutor(globalLogger, globalSubstitutor)
+			executor.SetDryRun(dryRun)
+			if namespace != "" {
+				executor.SetNamespace(namespace)
+			}
+			if kubeContext != "" {
+				executor.SetKubeContext(kubeContext)
+			}
+
+			// Sync repositories
+			repos := manager.GetRepositories()
+			if len(repos) > 0 {
+				globalLogger.Info("syncing repositories", zap.Int("count", len(repos)))
+				if err := executor.SyncRepositories(repos); err != nil {
+					return fmt.Errorf("failed to sync repositories: %w", err)
+				}
+			}
+
+			// Get releases
+			releases := manager.GetReleases()
+			globalLogger.Info("found releases", zap.Int("count", len(releases)))
+
+			// Sync each release
+			for _, release := range releases {
+				if !manager.IsReleaseInstalled(release) {
+					globalLogger.Info("skipping release (installed: false)", zap.String("name", release.Name))
+					continue
+				}
+
+				if err := executor.SyncRelease(release); err != nil {
+					return fmt.Errorf("failed to sync release %s: %w", release.Name, err)
+				}
+			}
+
+			globalLogger.Info("sync completed successfully")
+			return nil
 		},
 	}
 
-	cmd.Flags().BoolP("watch", "w", false, "Watch for file changes and auto-sync")
-	cmd.Flags().Bool("daemon", false, "Run as background daemon")
-	cmd.Flags().Bool("drift-detect", false, "Enable drift detection")
-	cmd.Flags().Duration("drift-interval", 30, "Drift detection interval")
-	cmd.Flags().Bool("drift-auto-heal", false, "Automatically heal detected drift")
-	cmd.Flags().StringP("file", "f", "helmfile.yaml", "Path to helmfile")
-	cmd.Flags().StringP("environment", "e", "", "Environment name")
-	cmd.Flags().StringSliceP("selector", "l", nil, "Label selectors")
-	cmd.Flags().Int("concurrency", 0, "Concurrent releases (0 = unlimited)")
-	cmd.Flags().Bool("interactive", false, "Prompt before each release")
+	cmd.Flags().BoolVarP(&watch, "watch", "w", false, "Watch for file changes and auto-sync (Phase 2)")
+	cmd.Flags().BoolVar(&daemon, "daemon", false, "Run as background daemon (Phase 4)")
+	cmd.Flags().BoolVar(&driftDetect, "drift-detect", false, "Enable drift detection (Phase 3)")
+	cmd.Flags().StringVarP(&file, "file", "f", "helmfile.yaml", "Path to helmfile")
+	cmd.Flags().StringVarP(&environment, "environment", "e", "", "Environment name")
+	cmd.Flags().StringSliceVarP(&selectors, "selector", "l", nil, "Label selectors")
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "", "Default namespace")
+	cmd.Flags().StringVar(&kubeContext, "kube-context", "", "Kubernetes context")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Simulate sync without making changes")
 
 	return cmd
 }
@@ -80,7 +157,7 @@ func newChartCmd() *cobra.Command {
 		Long: `Replace a remote chart reference with a local chart directory.
 
 The substitution applies to all releases using the original chart.
-Changes to the local chart trigger automatic re-deployment in watch mode.
+Run 'helmfire sync' after adding substitutions to apply them.
 
 Examples:
   # Replace bitnami/postgresql with local chart
@@ -90,15 +167,23 @@ Examples:
   helmfire chart stable/mysql /home/user/charts/mysql`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement chart substitution
 			original := args[0]
 			localPath := args[1]
-			fmt.Printf("Chart substitution: %s -> %s (not yet implemented)\n", original, localPath)
+
+			if err := globalSubstitutor.AddChartSubstitution(original, localPath); err != nil {
+				return fmt.Errorf("failed to add chart substitution: %w", err)
+			}
+
+			globalLogger.Info("chart substitution added",
+				zap.String("original", original),
+				zap.String("local", localPath))
+
+			fmt.Printf("✓ Chart substitution added: %s → %s\n", original, localPath)
+			fmt.Println("Run 'helmfire sync' to apply the substitution")
+
 			return nil
 		},
 	}
-
-	cmd.Flags().String("daemon-socket", "", "Daemon socket path (if daemon is running)")
 
 	return cmd
 }
@@ -110,7 +195,7 @@ func newImageCmd() *cobra.Command {
 		Long: `Replace a container image reference across all releases.
 
 The substitution is applied during manifest rendering via post-renderer.
-Changes trigger automatic re-deployment in watch mode.
+Run 'helmfire sync' after adding substitutions to apply them.
 
 Examples:
   # Replace postgres image
@@ -120,48 +205,23 @@ Examples:
   helmfire image nginx:1.21 myregistry.io/nginx:custom`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Implement image substitution
 			original := args[0]
 			replacement := args[1]
-			fmt.Printf("Image substitution: %s -> %s (not yet implemented)\n", original, replacement)
+
+			if err := globalSubstitutor.AddImageSubstitution(original, replacement); err != nil {
+				return fmt.Errorf("failed to add image substitution: %w", err)
+			}
+
+			globalLogger.Info("image substitution added",
+				zap.String("original", original),
+				zap.String("replacement", replacement))
+
+			fmt.Printf("✓ Image substitution added: %s → %s\n", original, replacement)
+			fmt.Println("Run 'helmfire sync' to apply the substitution")
+
 			return nil
 		},
 	}
-
-	cmd.Flags().String("daemon-socket", "", "Daemon socket path (if daemon is running)")
-
-	return cmd
-}
-
-func newDaemonCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "daemon",
-		Short: "Manage helmfire daemon",
-	}
-
-	cmd.AddCommand(&cobra.Command{
-		Use:   "start",
-		Short: "Start daemon",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("daemon start not yet implemented")
-		},
-	})
-
-	cmd.AddCommand(&cobra.Command{
-		Use:   "stop",
-		Short: "Stop daemon",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("daemon stop not yet implemented")
-		},
-	})
-
-	cmd.AddCommand(&cobra.Command{
-		Use:   "status",
-		Short: "Show daemon status",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("daemon status not yet implemented")
-		},
-	})
 
 	return cmd
 }
@@ -176,7 +236,17 @@ func newListCmd() *cobra.Command {
 		Use:   "charts",
 		Short: "List chart substitutions",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("list charts not yet implemented")
+			subs := globalSubstitutor.ListChartSubstitutions()
+			if len(subs) == 0 {
+				fmt.Println("No chart substitutions active")
+				return nil
+			}
+
+			fmt.Println("Active chart substitutions:")
+			for _, sub := range subs {
+				fmt.Printf("  %s → %s\n", sub.Original, sub.LocalPath)
+			}
+			return nil
 		},
 	})
 
@@ -184,7 +254,17 @@ func newListCmd() *cobra.Command {
 		Use:   "images",
 		Short: "List image substitutions",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("list images not yet implemented")
+			subs := globalSubstitutor.ListImageSubstitutions()
+			if len(subs) == 0 {
+				fmt.Println("No image substitutions active")
+				return nil
+			}
+
+			fmt.Println("Active image substitutions:")
+			for _, sub := range subs {
+				fmt.Printf("  %s → %s\n", sub.Original, sub.Replacement)
+			}
+			return nil
 		},
 	})
 
@@ -202,7 +282,13 @@ func newRemoveCmd() *cobra.Command {
 		Short: "Remove chart substitution",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("remove chart not yet implemented")
+			original := args[0]
+			if err := globalSubstitutor.RemoveChartSubstitution(original); err != nil {
+				return err
+			}
+
+			fmt.Printf("✓ Chart substitution removed: %s\n", original)
+			return nil
 		},
 	})
 
@@ -211,7 +297,13 @@ func newRemoveCmd() *cobra.Command {
 		Short: "Remove image substitution",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("remove image not yet implemented")
+			original := args[0]
+			if err := globalSubstitutor.RemoveImageSubstitution(original); err != nil {
+				return err
+			}
+
+			fmt.Printf("✓ Image substitution removed: %s\n", original)
+			return nil
 		},
 	})
 
