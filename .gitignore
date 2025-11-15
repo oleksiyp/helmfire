@@ -1,0 +1,38 @@
+# Binaries
+helmfire
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Vendor
+vendor/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Analysis sources (not needed in git)
+analysis/sources/
+
+# Build artifacts
+dist/
+build/
+
+# Runtime
+*.pid
+*.sock
+*.log
