@@ -11,15 +11,16 @@ Helmfire extends [helmfile](https://github.com/helmfile/helmfile) with developer
 - ✅ **Image Substitution** - Override container images via post-renderer (Phase 1)
 - 🚧 **Watch Mode** - Auto-sync on helmfile.yaml or values file changes (Phase 2)
 - ✅ **Drift Detection** - Monitor cluster state vs. desired state (Phase 3)
-- 🚧 **Daemon Mode** - Background process with API control (Phase 4)
+- ✅ **Daemon Mode** - Background process with API control (Phase 4)
 
 ## Status
 
-🎉 **Phase 3 Complete!** 🎉
+🎉 **Phase 4 Complete!** 🎉
 
 Core features implemented:
 - ✅ Phase 1: Foundation with working sync and substitution
 - ✅ Phase 3: Drift detection with auto-healing and notifications
+- ✅ Phase 4: Daemon mode with API control
 
 See [examples/](examples/) to try it out!
 
@@ -91,6 +92,26 @@ helmfire sync --drift-detect --drift-auto-heal
 helmfire sync --drift-detect --drift-webhook=https://hooks.slack.com/...
 ```
 
+### Daemon Mode
+
+```bash
+# Start daemon with drift detection
+helmfire daemon start --drift-interval=1m
+
+# Check daemon status
+helmfire daemon status
+
+# Add substitutions to running daemon
+helmfire chart bitnami/nginx ./my-chart
+helmfire image postgres:15 localhost:5000/postgres:dev
+
+# View daemon logs
+helmfire daemon logs
+
+# Stop daemon
+helmfire daemon stop
+```
+
 ### Try the Examples
 
 ```bash
@@ -135,10 +156,10 @@ See [examples/README.md](examples/README.md) for more.
   - [x] Drift detector implementation
   - [x] Notification system (stdout, webhook)
   - [x] Auto-healing
-- [ ] Phase 4: Daemon Mode (Week 6)
-  - [ ] Background process
-  - [ ] API server
-  - [ ] Control commands
+- [x] Phase 4: Daemon Mode (Week 6)
+  - [x] Background process
+  - [x] API server
+  - [x] Control commands
 - [ ] Phase 5: Polish (Weeks 7-8)
   - [ ] Testing
   - [ ] Documentation
@@ -290,13 +311,23 @@ helmfire list charts|images
 helmfire remove chart|image <name>
 ```
 
+### helmfire daemon
+```bash
+helmfire daemon start [flags]
+helmfire daemon stop [flags]
+helmfire daemon status [flags]
+helmfire daemon logs [flags]
+```
+Flags for start: `--drift-interval`, `--drift-auto-heal`, `--drift-webhook`, `--api-addr`, `--pid-file`, `--log-file`
+
 ## Project Status
 
-**Phase 3 Complete!** Drift detection with auto-healing and notifications.
+**Phase 4 Complete!** Daemon mode with background process and API control.
 
 **Completed:**
 - ✅ Phase 1: Foundation with sync and substitution
-- ✅ Phase 3: Drift detection
+- ✅ Phase 3: Drift detection with auto-healing and notifications
+- ✅ Phase 4: Daemon mode with API control
 
 **Next:** Phase 2 - File watching with auto-sync
 
