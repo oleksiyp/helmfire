@@ -10,14 +10,18 @@ Helmfire extends [helmfile](https://github.com/helmfile/helmfile) with developer
 - ✅ **Chart Substitution** - Replace remote charts with local versions (Phase 1)
 - ✅ **Image Substitution** - Override container images via post-renderer (Phase 1)
 - 🚧 **Watch Mode** - Auto-sync on helmfile.yaml or values file changes (Phase 2)
-- 🚧 **Drift Detection** - Monitor cluster state vs. desired state (Phase 3)
+- ✅ **Drift Detection** - Monitor cluster state vs. desired state (Phase 3)
 - 🚧 **Daemon Mode** - Background process with API control (Phase 4)
 
 ## Status
 
-🎉 **Phase 1 Complete!** 🎉
+🎉 **Phase 3 Complete!** 🎉
 
-The foundation is ready with working sync functionality and chart/image substitution. See [examples/](examples/) to try it out!
+Core features implemented:
+- ✅ Phase 1: Foundation with working sync and substitution
+- ✅ Phase 3: Drift detection with auto-healing and notifications
+
+See [examples/](examples/) to try it out!
 
 ## Quick Start
 
@@ -71,6 +75,22 @@ helmfire sync --dry-run
 helmfire list images
 ```
 
+### Drift Detection
+
+```bash
+# Enable drift detection (checks every 30s by default)
+helmfire sync --drift-detect
+
+# Custom interval
+helmfire sync --drift-detect --drift-interval=1m
+
+# With auto-healing
+helmfire sync --drift-detect --drift-auto-heal
+
+# With webhook notifications
+helmfire sync --drift-detect --drift-webhook=https://hooks.slack.com/...
+```
+
 ### Try the Examples
 
 ```bash
@@ -111,10 +131,10 @@ See [examples/README.md](examples/README.md) for more.
   - [ ] File watcher implementation
   - [ ] Debouncing logic
   - [ ] Selective sync
-- [ ] Phase 3: Drift Detection (Week 5)
-  - [ ] Drift detector implementation
-  - [ ] Notification system
-  - [ ] Auto-healing
+- [x] Phase 3: Drift Detection (Week 5)
+  - [x] Drift detector implementation
+  - [x] Notification system (stdout, webhook)
+  - [x] Auto-healing
 - [ ] Phase 4: Daemon Mode (Week 6)
   - [ ] Background process
   - [ ] API server
@@ -272,7 +292,11 @@ helmfire remove chart|image <name>
 
 ## Project Status
 
-**Phase 1 Complete!** Foundation with working sync and substitution features.
+**Phase 3 Complete!** Drift detection with auto-healing and notifications.
+
+**Completed:**
+- ✅ Phase 1: Foundation with sync and substitution
+- ✅ Phase 3: Drift detection
 
 **Next:** Phase 2 - File watching with auto-sync
 

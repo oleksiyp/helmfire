@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/oleksiyp/helmfire/internal/version"
+	"github.com/oleksiyp/helmfire/pkg/drift"
 	"github.com/oleksiyp/helmfire/pkg/helmstate"
 	"github.com/oleksiyp/helmfire/pkg/substitute"
 	"github.com/oleksiyp/helmfire/pkg/sync"
@@ -57,15 +62,18 @@ func main() {
 
 func newSyncCmd() *cobra.Command {
 	var (
-		watch         bool
-		daemon        bool
-		driftDetect   bool
-		file          string
-		environment   string
-		selectors     []string
-		namespace     string
-		kubeContext   string
-		dryRun        bool
+		watch           bool
+		daemon          bool
+		driftDetect     bool
+		driftInterval   time.Duration
+		driftAutoHeal   bool
+		driftWebhook    string
+		file            string
+		environment     string
+		selectors       []string
+		namespace       string
+		kubeContext     string
+		dryRun          bool
 	)
 
 	cmd := &cobra.Command{
@@ -86,8 +94,8 @@ Examples:
   # Sync to specific namespace
   helmfire sync --namespace production`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if watch || daemon || driftDetect {
-				return fmt.Errorf("watch mode, daemon mode, and drift detection not yet implemented (Phase 2+)")
+			if watch || daemon {
+				return fmt.Errorf("watch mode and daemon mode not yet implemented (Phase 2 and 4)")
 			}
 
 			// Load helmfile
@@ -133,13 +141,84 @@ Examples:
 			}
 
 			globalLogger.Info("sync completed successfully")
+
+			// Start drift detection if enabled
+			if driftDetect {
+				globalLogger.Info("starting drift detection",
+					zap.Duration("interval", driftInterval),
+					zap.Bool("autoHeal", driftAutoHeal))
+
+				// Create drift detector
+				detector := drift.NewDetector(manager, driftInterval, globalLogger)
+
+				// Add stdout notifier
+				detector.AddNotifier(drift.NewStdoutNotifier(globalLogger))
+
+				// Add webhook notifier if configured
+				if driftWebhook != "" {
+					detector.AddNotifier(drift.NewWebhookNotifier(driftWebhook, globalLogger))
+				}
+
+				// Enable auto-heal if requested
+				if driftAutoHeal {
+					healFunc := func(releaseName string) error {
+						// Find the release
+						for _, release := range releases {
+							if release.Name == releaseName {
+								globalLogger.Info("healing release", zap.String("name", releaseName))
+								return executor.SyncRelease(release)
+							}
+						}
+						return fmt.Errorf("release not found: %s", releaseName)
+					}
+					detector.EnableAutoHeal(true, healFunc)
+				}
+
+				// Create context with signal handling
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+
+				// Handle interrupt signals
+				sigChan := make(chan os.Signal, 1)
+				signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+				// Start detector
+				if err := detector.Start(ctx); err != nil {
+					return fmt.Errorf("failed to start drift detector: %w", err)
+				}
+
+				globalLogger.Info("drift detector running, press Ctrl+C to stop")
+				fmt.Println("\n✓ Drift detector running...")
+				fmt.Printf("  Interval: %s\n", driftInterval)
+				fmt.Printf("  Auto-heal: %v\n", driftAutoHeal)
+				if driftWebhook != "" {
+					fmt.Printf("  Webhook: %s\n", driftWebhook)
+				}
+				fmt.Println("\nPress Ctrl+C to stop")
+
+				// Wait for interrupt
+				<-sigChan
+				globalLogger.Info("received interrupt signal, stopping drift detector")
+				fmt.Println("\nStopping drift detector...")
+
+				// Stop detector
+				if err := detector.Stop(); err != nil {
+					return fmt.Errorf("failed to stop drift detector: %w", err)
+				}
+
+				fmt.Println("✓ Drift detector stopped")
+			}
+
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVarP(&watch, "watch", "w", false, "Watch for file changes and auto-sync (Phase 2)")
 	cmd.Flags().BoolVar(&daemon, "daemon", false, "Run as background daemon (Phase 4)")
-	cmd.Flags().BoolVar(&driftDetect, "drift-detect", false, "Enable drift detection (Phase 3)")
+	cmd.Flags().BoolVar(&driftDetect, "drift-detect", false, "Enable drift detection")
+	cmd.Flags().DurationVar(&driftInterval, "drift-interval", 30*time.Second, "Drift detection interval")
+	cmd.Flags().BoolVar(&driftAutoHeal, "drift-auto-heal", false, "Automatically heal detected drift")
+	cmd.Flags().StringVar(&driftWebhook, "drift-webhook", "", "Webhook URL for drift notifications")
 	cmd.Flags().StringVarP(&file, "file", "f", "helmfile.yaml", "Path to helmfile")
 	cmd.Flags().StringVarP(&environment, "environment", "e", "", "Environment name")
 	cmd.Flags().StringSliceVarP(&selectors, "selector", "l", nil, "Label selectors")
