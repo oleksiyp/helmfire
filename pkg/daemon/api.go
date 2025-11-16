@@ -98,7 +98,7 @@ func (s *APIServer) Stop() error {
 // handleHealth handles health check requests
 func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
 }
 
 // handleStatus handles status requests
@@ -110,7 +110,7 @@ func (h *APIHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	status := h.daemon.GetStatus()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
+	_ = json.NewEncoder(w).Encode(status)
 }
 
 // handleCharts handles chart substitution requests
@@ -243,7 +243,7 @@ func (h *APIHandler) handleSubstitutions(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // handleSync handles manual sync requests
@@ -321,11 +321,11 @@ func (h *APIHandler) handleShutdown(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) sendError(w http.ResponseWriter, message string, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(ErrorResponse{Error: message})
+	_ = json.NewEncoder(w).Encode(ErrorResponse{Error: message})
 }
 
 // sendSuccess sends a success response
 func (h *APIHandler) sendSuccess(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(SuccessResponse{Message: message})
+	_ = json.NewEncoder(w).Encode(SuccessResponse{Message: message})
 }

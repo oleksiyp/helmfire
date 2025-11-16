@@ -16,11 +16,11 @@ import (
 
 // Executor handles release synchronization
 type Executor struct {
+	logger      *zap.Logger
+	substitutor *substitute.Manager
 	helmBinary  string
 	namespace   string
 	kubeContext string
-	logger      *zap.Logger
-	substitutor *substitute.Manager
 	dryRun      bool
 }
 
@@ -173,7 +173,7 @@ func (e *Executor) createImagePostRenderer() (string, error) {
 cat <&0 | sed '%s'
 `, strings.Join(sedCommands, ";"))
 
-	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
 		return "", err
 	}
 

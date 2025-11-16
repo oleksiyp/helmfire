@@ -43,7 +43,7 @@ releases:
         value: "3"
 `
 
-	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0644); err != nil {
+	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0o644); err != nil {
 		t.Fatalf("failed to write test helmfile: %v", err)
 	}
 
@@ -96,7 +96,7 @@ releases:
     invalid yaml content [[[
 `
 
-	if err := os.WriteFile(helmfilePath, []byte(invalidYAML), 0644); err != nil {
+	if err := os.WriteFile(helmfilePath, []byte(invalidYAML), 0o644); err != nil {
 		t.Fatalf("failed to write test helmfile: %v", err)
 	}
 
@@ -130,7 +130,7 @@ releases:
       tier: backend
 `
 
-	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0644); err != nil {
+	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0o644); err != nil {
 		t.Fatalf("failed to write test helmfile: %v", err)
 	}
 

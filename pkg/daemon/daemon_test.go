@@ -23,12 +23,12 @@ func TestIsDaemonRunning(t *testing.T) {
 
 	// Test: PID file with current process
 	pid := os.Getpid()
-	if err := os.WriteFile(pidFile, []byte(string(rune(pid))), 0644); err != nil {
+	if err := os.WriteFile(pidFile, []byte(string(rune(pid))), 0o644); err != nil {
 		t.Fatalf("Failed to write PID file: %v", err)
 	}
 
 	// Clean up
-	defer os.Remove(pidFile)
+	defer func() { _ = os.Remove(pidFile) }()
 }
 
 func TestAPIClient(t *testing.T) {

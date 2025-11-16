@@ -31,7 +31,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer globalLogger.Sync()
+	defer func() { _ = globalLogger.Sync() }()
 
 	// Initialize substitutor
 	globalSubstitutor = substitute.NewManager()
@@ -262,7 +262,8 @@ Examples:
 			localPath := args[1]
 
 			// Check if daemon is running
-			if running, _ := daemon.IsDaemonRunning(daemonPIDFile); running {
+			running, err := daemon.IsDaemonRunning(daemonPIDFile)
+			if err == nil && running {
 				// Send to daemon API
 				client := daemon.NewAPIClient(daemonAPIAddr)
 				if err := client.AddChartSubstitution(original, localPath); err != nil {
@@ -326,7 +327,8 @@ Examples:
 			replacement := args[1]
 
 			// Check if daemon is running
-			if running, _ := daemon.IsDaemonRunning(daemonPIDFile); running {
+			running, err := daemon.IsDaemonRunning(daemonPIDFile)
+			if err == nil && running {
 				// Send to daemon API
 				client := daemon.NewAPIClient(daemonAPIAddr)
 				if err := client.AddImageSubstitution(original, replacement); err != nil {
@@ -487,7 +489,8 @@ Examples:
   helmfire daemon start --api-addr=:9090`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check if already running
-			if running, _ := daemon.IsDaemonRunning(pidFile); running {
+			running, err := daemon.IsDaemonRunning(pidFile)
+			if err == nil && running {
 				return fmt.Errorf("daemon already running")
 			}
 
@@ -540,7 +543,8 @@ Examples:
 		Short: "Stop the daemon",
 		Long:  `Stop a running helmfire daemon gracefully.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if running, _ := daemon.IsDaemonRunning(pidFile); !running {
+			running, err := daemon.IsDaemonRunning(pidFile)
+			if err != nil || !running {
 				return fmt.Errorf("daemon not running")
 			}
 
@@ -594,7 +598,8 @@ Examples:
 		Long:  `Display logs from the helmfire daemon.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check if daemon is running
-			if running, _ := daemon.IsDaemonRunning(pidFile); !running {
+			running, err := daemon.IsDaemonRunning(pidFile)
+			if err != nil || !running {
 				return fmt.Errorf("daemon not running")
 			}
 

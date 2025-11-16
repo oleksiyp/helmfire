@@ -37,7 +37,7 @@ releases:
     installed: false
 `
 
-	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0644); err != nil {
+	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0o644); err != nil {
 		t.Fatalf("failed to write helmfile: %v", err)
 	}
 
@@ -71,7 +71,7 @@ func TestE2EChartSubstitution(t *testing.T) {
 
 	// Create a local chart
 	localChartDir := filepath.Join(tmpDir, "my-chart")
-	if err := os.MkdirAll(filepath.Join(localChartDir, "templates"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(localChartDir, "templates"), 0o755); err != nil {
 		t.Fatalf("failed to create chart directory: %v", err)
 	}
 
@@ -80,7 +80,7 @@ name: my-chart
 version: 1.0.0
 description: Test chart
 `
-	if err := os.WriteFile(filepath.Join(localChartDir, "Chart.yaml"), []byte(chartYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(localChartDir, "Chart.yaml"), []byte(chartYAML), 0o644); err != nil {
 		t.Fatalf("failed to write Chart.yaml: %v", err)
 	}
 
@@ -92,7 +92,7 @@ metadata:
 data:
   key: value
 `
-	if err := os.WriteFile(filepath.Join(localChartDir, "templates", "configmap.yaml"), []byte(templateYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(localChartDir, "templates", "configmap.yaml"), []byte(templateYAML), 0o644); err != nil {
 		t.Fatalf("failed to write template: %v", err)
 	}
 
