@@ -1,3 +1,4 @@
+// Package daemon provides daemon mode functionality for helmfire.
 package daemon
 
 import (

@@ -1,3 +1,4 @@
+// Package drift provides drift detection and auto-healing capabilities.
 package drift
 
 import (

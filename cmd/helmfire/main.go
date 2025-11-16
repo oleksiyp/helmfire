@@ -95,7 +95,7 @@ Examples:
 
   # Sync to specific namespace
   helmfire sync --namespace production`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			if watch || daemon {
 				return fmt.Errorf("watch mode and daemon mode not yet implemented (Phase 2 and 4)")
 			}
@@ -257,7 +257,7 @@ Examples:
   # Add to running daemon
   helmfire chart bitnami/postgresql ./charts/postgresql --daemon-api-addr=127.0.0.1:8080`,
 		Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			original := args[0]
 			localPath := args[1]
 
@@ -322,7 +322,7 @@ Examples:
   # Add to running daemon
   helmfire image postgres:15 localhost:5000/postgres:dev --daemon-api-addr=127.0.0.1:8080`,
 		Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			original := args[0]
 			replacement := args[1]
 
@@ -370,7 +370,7 @@ func newListCmd() *cobra.Command {
 	cmd.AddCommand(&cobra.Command{
 		Use:   "charts",
 		Short: "List chart substitutions",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			subs := globalSubstitutor.ListChartSubstitutions()
 			if len(subs) == 0 {
 				fmt.Println("No chart substitutions active")
@@ -388,7 +388,7 @@ func newListCmd() *cobra.Command {
 	cmd.AddCommand(&cobra.Command{
 		Use:   "images",
 		Short: "List image substitutions",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			subs := globalSubstitutor.ListImageSubstitutions()
 			if len(subs) == 0 {
 				fmt.Println("No image substitutions active")
@@ -416,7 +416,7 @@ func newRemoveCmd() *cobra.Command {
 		Use:   "chart <original>",
 		Short: "Remove chart substitution",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			original := args[0]
 			if err := globalSubstitutor.RemoveChartSubstitution(original); err != nil {
 				return err
@@ -431,7 +431,7 @@ func newRemoveCmd() *cobra.Command {
 		Use:   "image <original>",
 		Short: "Remove image substitution",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			original := args[0]
 			if err := globalSubstitutor.RemoveImageSubstitution(original); err != nil {
 				return err
@@ -487,7 +487,7 @@ Examples:
 
   # Start with custom API address
   helmfire daemon start --api-addr=:9090`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			// Check if already running
 			running, err := daemon.IsDaemonRunning(pidFile)
 			if err == nil && running {
@@ -542,7 +542,7 @@ Examples:
 		Use:   "stop",
 		Short: "Stop the daemon",
 		Long:  `Stop a running helmfire daemon gracefully.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			running, err := daemon.IsDaemonRunning(pidFile)
 			if err != nil || !running {
 				return fmt.Errorf("daemon not running")
@@ -565,7 +565,7 @@ Examples:
 		Use:   "status",
 		Short: "Show daemon status",
 		Long:  `Display the current status of the helmfire daemon.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			status, err := daemon.GetDaemonStatus(pidFile, apiAddr)
 			if err != nil {
 				return fmt.Errorf("failed to get status: %w", err)
@@ -596,7 +596,7 @@ Examples:
 		Use:   "logs",
 		Short: "Show daemon logs",
 		Long:  `Display logs from the helmfire daemon.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			// Check if daemon is running
 			running, err := daemon.IsDaemonRunning(pidFile)
 			if err != nil || !running {

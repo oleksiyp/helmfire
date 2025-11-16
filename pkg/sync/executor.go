@@ -1,3 +1,4 @@
+// Package sync provides helmfile synchronization and execution functionality.
 package sync
 
 import (

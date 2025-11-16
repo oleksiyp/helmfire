@@ -1,3 +1,4 @@
+// Package helmstate provides helmfile state management functionality.
 package helmstate
 
 import (
