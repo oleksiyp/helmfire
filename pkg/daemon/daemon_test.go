@@ -23,12 +23,12 @@ func TestIsDaemonRunning(t *testing.T) {
 
 	// Test: PID file with current process
 	pid := os.Getpid()
-	if err := os.WriteFile(pidFile, []byte(string(rune(pid))), 0644); err != nil {
+	if err := os.WriteFile(pidFile, []byte(string(rune(pid))), 0o644); err != nil {
 		t.Fatalf("Failed to write PID file: %v", err)
 	}
 
 	// Clean up
-	defer os.Remove(pidFile)
+	defer func() { _ = os.Remove(pidFile) }()
 }
 
 func TestAPIClient(t *testing.T) {
@@ -66,12 +66,32 @@ func TestDaemonConfig(t *testing.T) {
 		t.Errorf("Expected PIDFile to be /tmp/test.pid, got: %s", config.PIDFile)
 	}
 
+	if config.LogFile != "/tmp/test.log" {
+		t.Errorf("Expected LogFile to be /tmp/test.log, got: %s", config.LogFile)
+	}
+
+	if config.APIAddr != "127.0.0.1:9090" {
+		t.Errorf("Expected APIAddr to be 127.0.0.1:9090, got: %s", config.APIAddr)
+	}
+
+	if config.HelmfilePath != "helmfile.yaml" {
+		t.Errorf("Expected HelmfilePath to be helmfile.yaml, got: %s", config.HelmfilePath)
+	}
+
+	if config.Environment != "test" {
+		t.Errorf("Expected Environment to be test, got: %s", config.Environment)
+	}
+
 	if config.DriftInterval != 30*time.Second {
 		t.Errorf("Expected DriftInterval to be 30s, got: %v", config.DriftInterval)
 	}
 
 	if !config.DriftAutoHeal {
 		t.Error("Expected DriftAutoHeal to be true")
+	}
+
+	if config.DriftWebhook != "http://example.com/webhook" {
+		t.Errorf("Expected DriftWebhook to be http://example.com/webhook, got: %s", config.DriftWebhook)
 	}
 }
 
@@ -89,5 +109,13 @@ func TestStatus(t *testing.T) {
 
 	if status.PID != 12345 {
 		t.Errorf("Expected PID to be 12345, got: %d", status.PID)
+	}
+
+	if status.Uptime != "1h30m" {
+		t.Errorf("Expected Uptime to be 1h30m, got: %s", status.Uptime)
+	}
+
+	if status.StartTime.IsZero() {
+		t.Error("Expected StartTime to be set")
 	}
 }

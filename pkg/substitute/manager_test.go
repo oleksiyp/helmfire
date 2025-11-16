@@ -22,13 +22,13 @@ func TestAddChartSubstitution(t *testing.T) {
 	// Create a temporary chart directory
 	tmpDir := t.TempDir()
 	chartDir := filepath.Join(tmpDir, "test-chart")
-	if err := os.Mkdir(chartDir, 0755); err != nil {
+	if err := os.Mkdir(chartDir, 0o755); err != nil {
 		t.Fatalf("failed to create chart dir: %v", err)
 	}
 
 	// Create Chart.yaml
 	chartYAML := filepath.Join(chartDir, "Chart.yaml")
-	if err := os.WriteFile(chartYAML, []byte("name: test\nversion: 1.0.0\n"), 0644); err != nil {
+	if err := os.WriteFile(chartYAML, []byte("name: test\nversion: 1.0.0\n"), 0o644); err != nil {
 		t.Fatalf("failed to create Chart.yaml: %v", err)
 	}
 
@@ -89,8 +89,8 @@ func TestRemoveChartSubstitution(t *testing.T) {
 	// Create temp chart
 	tmpDir := t.TempDir()
 	chartDir := filepath.Join(tmpDir, "test-chart")
-	os.Mkdir(chartDir, 0755)
-	os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte("name: test\n"), 0644)
+	os.Mkdir(chartDir, 0o755)
+	os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte("name: test\n"), 0o644)
 
 	m.AddChartSubstitution("myrepo/mychart", chartDir)
 
@@ -143,8 +143,8 @@ func TestListSubstitutions(t *testing.T) {
 	// Create temp chart
 	tmpDir := t.TempDir()
 	chartDir := filepath.Join(tmpDir, "test-chart")
-	os.Mkdir(chartDir, 0755)
-	os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte("name: test\n"), 0644)
+	os.Mkdir(chartDir, 0o755)
+	os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte("name: test\n"), 0o644)
 
 	// Add substitutions
 	m.AddChartSubstitution("repo1/chart1", chartDir)
@@ -170,8 +170,8 @@ func TestApplySubstitutions(t *testing.T) {
 	// Create temp chart
 	tmpDir := t.TempDir()
 	chartDir := filepath.Join(tmpDir, "test-chart")
-	os.Mkdir(chartDir, 0755)
-	os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte("name: test\n"), 0644)
+	os.Mkdir(chartDir, 0o755)
+	os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte("name: test\n"), 0o644)
 
 	m.AddChartSubstitution("myrepo/mychart", chartDir)
 	m.AddImageSubstitution("nginx:1.21", "custom:latest")
@@ -219,8 +219,8 @@ func TestConcurrency(t *testing.T) {
 	// Create temp chart
 	tmpDir := t.TempDir()
 	chartDir := filepath.Join(tmpDir, "test-chart")
-	os.Mkdir(chartDir, 0755)
-	os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte("name: test\n"), 0644)
+	os.Mkdir(chartDir, 0o755)
+	os.WriteFile(filepath.Join(chartDir, "Chart.yaml"), []byte("name: test\n"), 0o644)
 
 	// Test concurrent access
 	done := make(chan bool)

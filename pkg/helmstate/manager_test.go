@@ -43,7 +43,7 @@ releases:
         value: "3"
 `
 
-	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0644); err != nil {
+	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0o644); err != nil {
 		t.Fatalf("failed to write test helmfile: %v", err)
 	}
 
@@ -96,7 +96,7 @@ releases:
     invalid yaml content [[[
 `
 
-	if err := os.WriteFile(helmfilePath, []byte(invalidYAML), 0644); err != nil {
+	if err := os.WriteFile(helmfilePath, []byte(invalidYAML), 0o644); err != nil {
 		t.Fatalf("failed to write test helmfile: %v", err)
 	}
 
@@ -130,7 +130,7 @@ releases:
       tier: backend
 `
 
-	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0644); err != nil {
+	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0o644); err != nil {
 		t.Fatalf("failed to write test helmfile: %v", err)
 	}
 
@@ -141,8 +141,8 @@ releases:
 
 	tests := []struct {
 		name     string
-		selector map[string]string
 		expected int
+		selector map[string]string
 	}{
 		{
 			name:     "no selector returns all",
@@ -186,8 +186,8 @@ func TestIsReleaseInstalled(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		release  Release
 		expected bool
+		release  Release
 	}{
 		{
 			name: "nil installed field defaults to true",

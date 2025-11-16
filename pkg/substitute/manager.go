@@ -1,3 +1,4 @@
+// Package substitute provides chart and image substitution functionality.
 package substitute
 
 import (

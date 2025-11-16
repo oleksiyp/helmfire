@@ -88,7 +88,7 @@ func (n *WebhookNotifier) Notify(report DriftReport) error {
 	if err != nil {
 		return fmt.Errorf("failed to send webhook: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("webhook returned non-2xx status: %d", resp.StatusCode)

@@ -36,7 +36,7 @@ releases:
     version: 17.0.0
 `
 
-	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0644); err != nil {
+	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0o644); err != nil {
 		b.Fatalf("failed to write helmfile: %v", err)
 	}
 
@@ -56,7 +56,7 @@ func BenchmarkSubstitutionManager(b *testing.B) {
 	b.Run("AddChartSubstitution", func(b *testing.B) {
 		tmpDir := b.TempDir()
 		chartPath := filepath.Join(tmpDir, "chart")
-		if err := os.MkdirAll(chartPath, 0755); err != nil {
+		if err := os.MkdirAll(chartPath, 0o755); err != nil {
 			b.Fatalf("failed to create chart dir: %v", err)
 		}
 
@@ -64,7 +64,7 @@ func BenchmarkSubstitutionManager(b *testing.B) {
 name: test-chart
 version: 1.0.0
 `
-		if err := os.WriteFile(filepath.Join(chartPath, "Chart.yaml"), []byte(chartYAML), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(chartPath, "Chart.yaml"), []byte(chartYAML), 0o644); err != nil {
 			b.Fatalf("failed to write Chart.yaml: %v", err)
 		}
 
@@ -84,7 +84,7 @@ version: 1.0.0
 	b.Run("GetChartPath", func(b *testing.B) {
 		tmpDir := b.TempDir()
 		chartPath := filepath.Join(tmpDir, "chart")
-		if err := os.MkdirAll(chartPath, 0755); err != nil {
+		if err := os.MkdirAll(chartPath, 0o755); err != nil {
 			b.Fatalf("failed to create chart dir: %v", err)
 		}
 
@@ -92,7 +92,7 @@ version: 1.0.0
 name: test-chart
 version: 1.0.0
 `
-		if err := os.WriteFile(filepath.Join(chartPath, "Chart.yaml"), []byte(chartYAML), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(chartPath, "Chart.yaml"), []byte(chartYAML), 0o644); err != nil {
 			b.Fatalf("failed to write Chart.yaml: %v", err)
 		}
 
@@ -148,7 +148,7 @@ releases:
       tier: backend
 `
 
-	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0644); err != nil {
+	if err := os.WriteFile(helmfilePath, []byte(helmfileContent), 0o644); err != nil {
 		b.Fatalf("failed to write helmfile: %v", err)
 	}
 
@@ -222,7 +222,7 @@ resources:
     memory: 64Mi
 `
 
-	if err := os.WriteFile(valuesPath, []byte(valuesContent), 0644); err != nil {
+	if err := os.WriteFile(valuesPath, []byte(valuesContent), 0o644); err != nil {
 		b.Fatalf("failed to write values file: %v", err)
 	}
 

@@ -97,15 +97,18 @@ func (d *Daemon) Start() error {
 
 	// Start API server
 	if err := d.apiServer.Start(); err != nil {
-		d.removePIDFile()
+		//nolint:errcheck // Best effort cleanup on error path
+		_ = d.removePIDFile()
 		return fmt.Errorf("failed to start API server: %w", err)
 	}
 
 	// Start drift detector if configured
 	if d.detector != nil {
 		if err := d.detector.Start(d.ctx); err != nil {
-			d.apiServer.Stop()
-			d.removePIDFile()
+			//nolint:errcheck // Best effort cleanup on error path
+			_ = d.apiServer.Stop()
+			//nolint:errcheck // Best effort cleanup on error path
+			_ = d.removePIDFile()
 			return fmt.Errorf("failed to start drift detector: %w", err)
 		}
 		d.logger.Info("drift detector started")
@@ -215,7 +218,7 @@ func (d *Daemon) GetDetector() *drift.Detector {
 // writePIDFile writes the current PID to the PID file
 func (d *Daemon) writePIDFile() error {
 	pid := os.Getpid()
-	return os.WriteFile(d.pidFile, []byte(fmt.Sprintf("%d\n", pid)), 0644)
+	return os.WriteFile(d.pidFile, []byte(fmt.Sprintf("%d\n", pid)), 0o644)
 }
 
 // removePIDFile removes the PID file
@@ -285,7 +288,7 @@ func StopDaemon(pidFile string) error {
 		err := process.Signal(syscall.Signal(0))
 		if err != nil {
 			// Process no longer exists
-			os.Remove(pidFile)
+			_ = os.Remove(pidFile)
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -296,7 +299,7 @@ func StopDaemon(pidFile string) error {
 		return fmt.Errorf("failed to kill process: %w", err)
 	}
 
-	os.Remove(pidFile)
+	_ = os.Remove(pidFile)
 	return nil
 }
 

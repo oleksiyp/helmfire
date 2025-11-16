@@ -130,7 +130,7 @@ service:
   port: 80
 `
 
-	if err := os.WriteFile(valuesPath, []byte(valuesContent), 0644); err != nil {
+	if err := os.WriteFile(valuesPath, []byte(valuesContent), 0o644); err != nil {
 		t.Fatalf("failed to write values file: %v", err)
 	}
 
@@ -170,7 +170,7 @@ replicaCount: 3
 invalid: [[[
 `
 
-	if err := os.WriteFile(valuesPath, []byte(invalidYAML), 0644); err != nil {
+	if err := os.WriteFile(valuesPath, []byte(invalidYAML), 0o644); err != nil {
 		t.Fatalf("failed to write values file: %v", err)
 	}
 
@@ -190,7 +190,7 @@ func TestSyncReleaseWithChartSubstitution(t *testing.T) {
 	localChartPath := filepath.Join(tmpDir, "my-chart")
 
 	// Create minimal chart structure
-	if err := os.MkdirAll(localChartPath, 0755); err != nil {
+	if err := os.MkdirAll(localChartPath, 0o755); err != nil {
 		t.Fatalf("failed to create chart directory: %v", err)
 	}
 
@@ -198,7 +198,7 @@ func TestSyncReleaseWithChartSubstitution(t *testing.T) {
 name: my-chart
 version: 1.0.0
 `
-	if err := os.WriteFile(filepath.Join(localChartPath, "Chart.yaml"), []byte(chartYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(localChartPath, "Chart.yaml"), []byte(chartYAML), 0o644); err != nil {
 		t.Fatalf("failed to write Chart.yaml: %v", err)
 	}
 
@@ -221,6 +221,12 @@ version: 1.0.0
 	// Skip actual execution without helm, but verify the setup worked
 	if release.Name != "test-nginx" {
 		t.Errorf("expected release name test-nginx, got %s", release.Name)
+	}
+	if release.Chart != "bitnami/nginx" {
+		t.Errorf("expected chart bitnami/nginx, got %s", release.Chart)
+	}
+	if release.Namespace != "default" {
+		t.Errorf("expected namespace default, got %s", release.Namespace)
 	}
 }
 
