@@ -1,0 +1,40 @@
+# Binaries
+helmfire
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*.test
+*.out
+coverage.out
+*.coverprofile
+
+# Directories
+.git/
+.github/
+dist/
+build/
+tmp/
+vendor/
+
+# Documentation
+*.md
+docs/
+examples/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CI
+.gitignore
+.dockerignore

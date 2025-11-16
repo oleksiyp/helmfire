@@ -180,6 +180,11 @@ cat <&0 | sed '%s'
 	return scriptPath, nil
 }
 
+// CreateImagePostRendererForBenchmark is a public wrapper for benchmarking
+func (e *Executor) CreateImagePostRendererForBenchmark() (string, error) {
+	return e.createImagePostRenderer()
+}
+
 // runHelm executes a helm command
 func (e *Executor) runHelm(args ...string) error {
 	cmd := exec.Command(e.helmBinary, args...)
