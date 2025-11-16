@@ -1,0 +1,47 @@
+class Helmfire < Formula
+  desc "Dynamic Kubernetes deployment tool with live chart/image substitution"
+  homepage "https://github.com/oleksiyp/helmfire"
+  url "https://github.com/oleksiyp/helmfire/releases/download/v{{VERSION}}/helmfire-v{{VERSION}}-{{PLATFORM}}-{{ARCH}}.tar.gz"
+  sha256 "{{SHA256}}"
+  version "{{VERSION}}"
+  license "Apache-2.0"
+
+  depends_on "helm"
+  depends_on "kubectl"
+
+  def install
+    bin.install "helmfire-v#{version}-#{OS}-#{Hardware::CPU.arch}" => "helmfire"
+  end
+
+  test do
+    assert_match "Version: #{version}", shell_output("#{bin}/helmfire version")
+  end
+
+  def caveats
+    <<~EOS
+      Helmfire has been installed!
+
+      Quick start:
+        helmfire sync                    # Sync helmfile.yaml
+        helmfire chart <orig> <local>   # Add chart substitution
+        helmfire image <orig> <new>     # Add image substitution
+        helmfire sync --watch           # Watch for changes
+
+      Documentation: https://github.com/oleksiyp/helmfire
+    EOS
+  end
+end
+
+# Installation variants for different platforms:
+#
+# macOS (Apple Silicon):
+#   url "https://github.com/oleksiyp/helmfire/releases/download/v{{VERSION}}/helmfire-v{{VERSION}}-darwin-arm64.tar.gz"
+#
+# macOS (Intel):
+#   url "https://github.com/oleksiyp/helmfire/releases/download/v{{VERSION}}/helmfire-v{{VERSION}}-darwin-amd64.tar.gz"
+#
+# Linux (x86_64):
+#   url "https://github.com/oleksiyp/helmfire/releases/download/v{{VERSION}}/helmfire-v{{VERSION}}-linux-amd64.tar.gz"
+#
+# Linux (ARM64):
+#   url "https://github.com/oleksiyp/helmfire/releases/download/v{{VERSION}}/helmfire-v{{VERSION}}-linux-arm64.tar.gz"

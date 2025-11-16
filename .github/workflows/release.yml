@@ -1,0 +1,233 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    name: Build Release Binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Get version
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        VERSION: ${{ steps.get_version.outputs.VERSION }}
+      run: |
+        BINARY_NAME="helmfire-${VERSION}-${GOOS}-${GOARCH}"
+        if [ "$GOOS" = "windows" ]; then
+          BINARY_NAME="${BINARY_NAME}.exe"
+        fi
+
+        go build -ldflags "-X github.com/oleksiyp/helmfire/internal/version.Version=${VERSION} \
+                           -X github.com/oleksiyp/helmfire/internal/version.GitCommit=$(git rev-parse --short HEAD) \
+                           -X github.com/oleksiyp/helmfire/internal/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                 -o "${BINARY_NAME}" ./cmd/helmfire
+
+        # Create tarball
+        if [ "$GOOS" = "windows" ]; then
+          zip "${BINARY_NAME}.zip" "${BINARY_NAME}"
+        else
+          tar czf "${BINARY_NAME}.tar.gz" "${BINARY_NAME}"
+        fi
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: binaries
+        path: helmfire-*
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: binaries
+
+    - name: Get version
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        if [ -n "$PREVIOUS_TAG" ]; then
+          CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s" --no-merges)
+        else
+          CHANGELOG=$(git log --pretty=format:"- %s" --no-merges)
+        fi
+        echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Release ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          ## Changes in ${{ steps.get_version.outputs.VERSION }}
+
+          ${{ steps.changelog.outputs.CHANGELOG }}
+
+          ## Installation
+
+          Download the appropriate binary for your platform below.
+
+          ### Linux/macOS
+          ```bash
+          # Download and extract (replace with your platform)
+          curl -LO https://github.com/oleksiyp/helmfire/releases/download/${{ steps.get_version.outputs.VERSION }}/helmfire-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
+          tar xzf helmfire-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
+          chmod +x helmfire-${{ steps.get_version.outputs.VERSION }}-linux-amd64
+          sudo mv helmfire-${{ steps.get_version.outputs.VERSION }}-linux-amd64 /usr/local/bin/helmfire
+          ```
+
+          ### Homebrew
+          ```bash
+          brew install oleksiyp/tap/helmfire
+          ```
+
+          ### Docker
+          ```bash
+          docker pull ghcr.io/oleksiyp/helmfire:${{ steps.get_version.outputs.VERSION }}
+          ```
+        files: |
+          helmfire-*.tar.gz
+          helmfire-*.zip
+        draft: false
+        prerelease: false
+
+  docker:
+    name: Build and Push Docker Image
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Get version
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}:${{ steps.get_version.outputs.VERSION }}
+          ghcr.io/${{ github.repository }}:latest
+        build-args: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          GIT_COMMIT=${{ github.sha }}
+          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+
+  homebrew:
+    name: Update Homebrew Formula
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out homebrew-tap
+      uses: actions/checkout@v4
+      with:
+        repository: oleksiyp/homebrew-tap
+        token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        path: homebrew-tap
+
+    - name: Get version
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Download Linux AMD64 binary
+      run: |
+        curl -LO https://github.com/oleksiyp/helmfire/releases/download/v${{ steps.get_version.outputs.VERSION }}/helmfire-v${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
+        SHA256=$(sha256sum helmfire-v${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz | awk '{print $1}')
+        echo "SHA256=${SHA256}" >> $GITHUB_OUTPUT
+      id: sha256
+
+    - name: Update formula
+      run: |
+        cd homebrew-tap
+        cat > Formula/helmfire.rb << EOF
+        class Helmfire < Formula
+          desc "Dynamic Kubernetes deployment tool with live chart/image substitution"
+          homepage "https://github.com/oleksiyp/helmfire"
+          url "https://github.com/oleksiyp/helmfire/releases/download/v${{ steps.get_version.outputs.VERSION }}/helmfire-v${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz"
+          sha256 "${{ steps.sha256.outputs.SHA256 }}"
+          version "${{ steps.get_version.outputs.VERSION }}"
+
+          depends_on "helm"
+          depends_on "kubectl"
+
+          def install
+            bin.install "helmfire-v${{ steps.get_version.outputs.VERSION }}-linux-amd64" => "helmfire"
+          end
+
+          test do
+            system "#{bin}/helmfire", "version"
+          end
+        end
+        EOF
+
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add Formula/helmfire.rb
+        git commit -m "Update helmfire to v${{ steps.get_version.outputs.VERSION }}"
+        git push
