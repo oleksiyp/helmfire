@@ -640,8 +640,8 @@ func isDaemonRunning(pidFile string) (bool, error) {
 	}
 
 	var pid int
-	if _, err := fmt.Sscanf(string(data), "%d", &pid); err != nil {
-		return false, err
+	if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr != nil {
+		return false, scanErr
 	}
 
 	process, err := os.FindProcess(pid)

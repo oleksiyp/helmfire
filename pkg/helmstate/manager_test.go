@@ -141,8 +141,8 @@ releases:
 
 	tests := []struct {
 		name     string
-		selector map[string]string
 		expected int
+		selector map[string]string
 	}{
 		{
 			name:     "no selector returns all",
@@ -186,8 +186,8 @@ func TestIsReleaseInstalled(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		release  Release
 		expected bool
+		release  Release
 	}{
 		{
 			name: "nil installed field defaults to true",

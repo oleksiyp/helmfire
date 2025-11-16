@@ -99,6 +99,7 @@ func (s *APIServer) Stop() error {
 // handleHealth handles health check requests
 func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
+	//nolint:errcheck // Response already committed, nothing to do on encoding error
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
 }
 
@@ -111,6 +112,7 @@ func (h *APIHandler) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	status := h.daemon.GetStatus()
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:errcheck // Response already committed, nothing to do on encoding error
 	_ = json.NewEncoder(w).Encode(status)
 }
 
@@ -244,6 +246,7 @@ func (h *APIHandler) handleSubstitutions(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:errcheck // Response already committed, nothing to do on encoding error
 	_ = json.NewEncoder(w).Encode(response)
 }
 
@@ -322,11 +325,13 @@ func (h *APIHandler) handleShutdown(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) sendError(w http.ResponseWriter, message string, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
+	//nolint:errcheck // Response already committed, nothing to do on encoding error
 	_ = json.NewEncoder(w).Encode(ErrorResponse{Error: message})
 }
 
 // sendSuccess sends a success response
 func (h *APIHandler) sendSuccess(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
+	//nolint:errcheck // Response already committed, nothing to do on encoding error
 	_ = json.NewEncoder(w).Encode(SuccessResponse{Message: message})
 }

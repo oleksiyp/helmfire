@@ -97,6 +97,7 @@ func (d *Daemon) Start() error {
 
 	// Start API server
 	if err := d.apiServer.Start(); err != nil {
+		//nolint:errcheck // Best effort cleanup on error path
 		_ = d.removePIDFile()
 		return fmt.Errorf("failed to start API server: %w", err)
 	}
@@ -104,7 +105,9 @@ func (d *Daemon) Start() error {
 	// Start drift detector if configured
 	if d.detector != nil {
 		if err := d.detector.Start(d.ctx); err != nil {
+			//nolint:errcheck // Best effort cleanup on error path
 			_ = d.apiServer.Stop()
+			//nolint:errcheck // Best effort cleanup on error path
 			_ = d.removePIDFile()
 			return fmt.Errorf("failed to start drift detector: %w", err)
 		}
