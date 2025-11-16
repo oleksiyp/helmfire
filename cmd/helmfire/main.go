@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/oleksiyp/helmfire/internal/version"
+	"github.com/oleksiyp/helmfire/pkg/daemon"
 	"github.com/oleksiyp/helmfire/pkg/drift"
 	"github.com/oleksiyp/helmfire/pkg/helmstate"
 	"github.com/oleksiyp/helmfire/pkg/substitute"
@@ -53,6 +54,7 @@ func main() {
 	rootCmd.AddCommand(newImageCmd())
 	rootCmd.AddCommand(newListCmd())
 	rootCmd.AddCommand(newRemoveCmd())
+	rootCmd.AddCommand(newDaemonCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -230,6 +232,11 @@ Examples:
 }
 
 func newChartCmd() *cobra.Command {
+	var (
+		daemonAPIAddr string
+		daemonPIDFile string
+	)
+
 	cmd := &cobra.Command{
 		Use:   "chart <original> <local-path>",
 		Short: "Substitute a chart with a local version",
@@ -238,17 +245,35 @@ func newChartCmd() *cobra.Command {
 The substitution applies to all releases using the original chart.
 Run 'helmfire sync' after adding substitutions to apply them.
 
+If a daemon is running, the substitution will be sent to the daemon via API.
+
 Examples:
   # Replace bitnami/postgresql with local chart
   helmfire chart bitnami/postgresql ./charts/postgresql
 
   # Replace with absolute path
-  helmfire chart stable/mysql /home/user/charts/mysql`,
+  helmfire chart stable/mysql /home/user/charts/mysql
+
+  # Add to running daemon
+  helmfire chart bitnami/postgresql ./charts/postgresql --daemon-api-addr=127.0.0.1:8080`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			original := args[0]
 			localPath := args[1]
 
+			// Check if daemon is running
+			if running, _ := daemon.IsDaemonRunning(daemonPIDFile); running {
+				// Send to daemon API
+				client := daemon.NewAPIClient(daemonAPIAddr)
+				if err := client.AddChartSubstitution(original, localPath); err != nil {
+					return fmt.Errorf("failed to add chart substitution via daemon: %w", err)
+				}
+
+				fmt.Printf("✓ Chart substitution added to daemon: %s → %s\n", original, localPath)
+				return nil
+			}
+
+			// Add locally
 			if err := globalSubstitutor.AddChartSubstitution(original, localPath); err != nil {
 				return fmt.Errorf("failed to add chart substitution: %w", err)
 			}
@@ -264,10 +289,18 @@ Examples:
 		},
 	}
 
+	cmd.Flags().StringVar(&daemonAPIAddr, "daemon-api-addr", daemon.DefaultAPIAddr, "Daemon API address")
+	cmd.Flags().StringVar(&daemonPIDFile, "daemon-pid-file", daemon.DefaultPIDFile, "Daemon PID file")
+
 	return cmd
 }
 
 func newImageCmd() *cobra.Command {
+	var (
+		daemonAPIAddr string
+		daemonPIDFile string
+	)
+
 	cmd := &cobra.Command{
 		Use:   "image <original> <replacement>",
 		Short: "Substitute a container image",
@@ -276,17 +309,35 @@ func newImageCmd() *cobra.Command {
 The substitution is applied during manifest rendering via post-renderer.
 Run 'helmfire sync' after adding substitutions to apply them.
 
+If a daemon is running, the substitution will be sent to the daemon via API.
+
 Examples:
   # Replace postgres image
   helmfire image postgres:15 localhost:5000/postgres:dev
 
   # Replace nginx with custom registry
-  helmfire image nginx:1.21 myregistry.io/nginx:custom`,
+  helmfire image nginx:1.21 myregistry.io/nginx:custom
+
+  # Add to running daemon
+  helmfire image postgres:15 localhost:5000/postgres:dev --daemon-api-addr=127.0.0.1:8080`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			original := args[0]
 			replacement := args[1]
 
+			// Check if daemon is running
+			if running, _ := daemon.IsDaemonRunning(daemonPIDFile); running {
+				// Send to daemon API
+				client := daemon.NewAPIClient(daemonAPIAddr)
+				if err := client.AddImageSubstitution(original, replacement); err != nil {
+					return fmt.Errorf("failed to add image substitution via daemon: %w", err)
+				}
+
+				fmt.Printf("✓ Image substitution added to daemon: %s → %s\n", original, replacement)
+				return nil
+			}
+
+			// Add locally
 			if err := globalSubstitutor.AddImageSubstitution(original, replacement); err != nil {
 				return fmt.Errorf("failed to add image substitution: %w", err)
 			}
@@ -301,6 +352,9 @@ Examples:
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVar(&daemonAPIAddr, "daemon-api-addr", daemon.DefaultAPIAddr, "Daemon API address")
+	cmd.Flags().StringVar(&daemonPIDFile, "daemon-pid-file", daemon.DefaultPIDFile, "Daemon PID file")
 
 	return cmd
 }
@@ -387,4 +441,209 @@ func newRemoveCmd() *cobra.Command {
 	})
 
 	return cmd
+}
+
+func newDaemonCmd() *cobra.Command {
+	var (
+		pidFile       string
+		logFile       string
+		apiAddr       string
+		file          string
+		environment   string
+		driftInterval time.Duration
+		driftAutoHeal bool
+		driftWebhook  string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "daemon",
+		Short: "Manage helmfire daemon",
+		Long: `Control the helmfire background daemon.
+
+The daemon runs helmfire in the background with API control.
+You can add/remove substitutions and trigger syncs via the API.`,
+	}
+
+	// Start command
+	startCmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start the daemon",
+		Long: `Start helmfire as a background daemon.
+
+The daemon will:
+- Run initial sync
+- Start API server for control
+- Enable drift detection (if configured)
+- Monitor until stopped
+
+Examples:
+  # Start daemon with defaults
+  helmfire daemon start
+
+  # Start with drift detection
+  helmfire daemon start --drift-interval=1m --drift-auto-heal
+
+  # Start with custom API address
+  helmfire daemon start --api-addr=:9090`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if already running
+			if running, _ := daemon.IsDaemonRunning(pidFile); running {
+				return fmt.Errorf("daemon already running")
+			}
+
+			config := daemon.DaemonConfig{
+				PIDFile:       pidFile,
+				LogFile:       logFile,
+				APIAddr:       apiAddr,
+				HelmfilePath:  file,
+				Environment:   environment,
+				DriftInterval: driftInterval,
+				DriftAutoHeal: driftAutoHeal,
+				DriftWebhook:  driftWebhook,
+			}
+
+			d, err := daemon.NewDaemon(config, globalLogger)
+			if err != nil {
+				return fmt.Errorf("failed to create daemon: %w", err)
+			}
+
+			if err := d.Start(); err != nil {
+				return fmt.Errorf("failed to start daemon: %w", err)
+			}
+
+			fmt.Println("✓ Daemon started")
+			fmt.Printf("  PID file: %s\n", pidFile)
+			fmt.Printf("  Log file: %s\n", logFile)
+			fmt.Printf("  API: http://%s\n", apiAddr)
+			if driftInterval > 0 {
+				fmt.Printf("  Drift detection: enabled (interval: %s)\n", driftInterval)
+			}
+			fmt.Println("\nUse 'helmfire daemon stop' to stop the daemon")
+
+			// Wait for daemon to exit
+			return d.Wait()
+		},
+	}
+
+	startCmd.Flags().StringVar(&pidFile, "pid-file", daemon.DefaultPIDFile, "PID file path")
+	startCmd.Flags().StringVar(&logFile, "log-file", daemon.DefaultLogFile, "Log file path")
+	startCmd.Flags().StringVar(&apiAddr, "api-addr", daemon.DefaultAPIAddr, "API server address")
+	startCmd.Flags().StringVarP(&file, "file", "f", "helmfile.yaml", "Path to helmfile")
+	startCmd.Flags().StringVarP(&environment, "environment", "e", "", "Environment name")
+	startCmd.Flags().DurationVar(&driftInterval, "drift-interval", 0, "Drift detection interval (0 = disabled)")
+	startCmd.Flags().BoolVar(&driftAutoHeal, "drift-auto-heal", false, "Automatically heal detected drift")
+	startCmd.Flags().StringVar(&driftWebhook, "drift-webhook", "", "Webhook URL for drift notifications")
+
+	// Stop command
+	stopCmd := &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the daemon",
+		Long:  `Stop a running helmfire daemon gracefully.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if running, _ := daemon.IsDaemonRunning(pidFile); !running {
+				return fmt.Errorf("daemon not running")
+			}
+
+			fmt.Println("Stopping daemon...")
+			if err := daemon.StopDaemon(pidFile); err != nil {
+				return fmt.Errorf("failed to stop daemon: %w", err)
+			}
+
+			fmt.Println("✓ Daemon stopped")
+			return nil
+		},
+	}
+
+	stopCmd.Flags().StringVar(&pidFile, "pid-file", daemon.DefaultPIDFile, "PID file path")
+
+	// Status command
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show daemon status",
+		Long:  `Display the current status of the helmfire daemon.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			status, err := daemon.GetDaemonStatus(pidFile, apiAddr)
+			if err != nil {
+				return fmt.Errorf("failed to get status: %w", err)
+			}
+
+			if !status.Running {
+				fmt.Println("Daemon: not running")
+				return nil
+			}
+
+			fmt.Println("Daemon: running")
+			fmt.Printf("  PID: %d\n", status.PID)
+			fmt.Printf("  Uptime: %s\n", status.Uptime)
+			fmt.Printf("  Started: %s\n", status.StartTime.Format(time.RFC3339))
+			fmt.Printf("  Active substitutions:\n")
+			fmt.Printf("    Charts: %d\n", status.ActiveSubstitutions.Charts)
+			fmt.Printf("    Images: %d\n", status.ActiveSubstitutions.Images)
+
+			return nil
+		},
+	}
+
+	statusCmd.Flags().StringVar(&pidFile, "pid-file", daemon.DefaultPIDFile, "PID file path")
+	statusCmd.Flags().StringVar(&apiAddr, "api-addr", daemon.DefaultAPIAddr, "API server address")
+
+	// Logs command
+	logsCmd := &cobra.Command{
+		Use:   "logs",
+		Short: "Show daemon logs",
+		Long:  `Display logs from the helmfire daemon.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if daemon is running
+			if running, _ := daemon.IsDaemonRunning(pidFile); !running {
+				return fmt.Errorf("daemon not running")
+			}
+
+			// Read and display log file
+			data, err := os.ReadFile(logFile)
+			if err != nil {
+				if os.IsNotExist(err) {
+					fmt.Println("No logs available")
+					return nil
+				}
+				return fmt.Errorf("failed to read log file: %w", err)
+			}
+
+			fmt.Print(string(data))
+			return nil
+		},
+	}
+
+	logsCmd.Flags().StringVar(&pidFile, "pid-file", daemon.DefaultPIDFile, "PID file path")
+	logsCmd.Flags().StringVar(&logFile, "log-file", daemon.DefaultLogFile, "Log file path")
+
+	cmd.AddCommand(startCmd)
+	cmd.AddCommand(stopCmd)
+	cmd.AddCommand(statusCmd)
+	cmd.AddCommand(logsCmd)
+
+	return cmd
+}
+
+// Helper function to check if daemon is running (wrapper for package function)
+func isDaemonRunning(pidFile string) (bool, error) {
+	data, err := os.ReadFile(pidFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	var pid int
+	if _, err := fmt.Sscanf(string(data), "%d", &pid); err != nil {
+		return false, err
+	}
+
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false, nil
+	}
+
+	err = process.Signal(syscall.Signal(0))
+	return err == nil, nil
 }
